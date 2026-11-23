@@ -1,0 +1,432 @@
+
+
+================================================================================
+TABLE: academic_years
+================================================================================
+CREATE TABLE `academic_years` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(30) NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `is_current` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_academic_years_name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: attendance_records
+================================================================================
+CREATE TABLE `attendance_records` (
+  `session_id` bigint unsigned NOT NULL,
+  `course_id` bigint unsigned NOT NULL,
+  `academic_year_id` bigint unsigned NOT NULL,
+  `student_id` bigint unsigned NOT NULL,
+  `status` enum('present','absent','late','excused') NOT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  PRIMARY KEY (`session_id`,`student_id`),
+  KEY `ix_attendance_student` (`student_id`,`session_id`),
+  KEY `fk_attendance_records_session` (`session_id`,`course_id`,`academic_year_id`),
+  KEY `fk_attendance_records_enrollment` (`student_id`,`course_id`,`academic_year_id`),
+  CONSTRAINT `fk_attendance_records_enrollment` FOREIGN KEY (`student_id`, `course_id`, `academic_year_id`) REFERENCES `student_courses` (`student_id`, `course_id`, `academic_year_id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_attendance_records_session` FOREIGN KEY (`session_id`, `course_id`, `academic_year_id`) REFERENCES `attendance_sessions` (`id`, `course_id`, `academic_year_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: attendance_sessions
+================================================================================
+CREATE TABLE `attendance_sessions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `course_id` bigint unsigned NOT NULL,
+  `academic_year_id` bigint unsigned NOT NULL,
+  `attendance_date` date NOT NULL,
+  `recorded_by` bigint unsigned NOT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_attendance_session_course_year` (`id`,`course_id`,`academic_year_id`),
+  UNIQUE KEY `uq_attendance_course_date` (`course_id`,`academic_year_id`,`attendance_date`),
+  KEY `fk_attendance_sessions_academic_year` (`academic_year_id`),
+  KEY `fk_attendance_sessions_recorder` (`recorded_by`),
+  CONSTRAINT `fk_attendance_sessions_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_attendance_sessions_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_attendance_sessions_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: course_notes
+================================================================================
+CREATE TABLE `course_notes` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `course_id` bigint unsigned NOT NULL,
+  `uploaded_by` bigint unsigned NOT NULL,
+  `title` varchar(150) NOT NULL,
+  `description` text,
+  `original_filename` varchar(255) NOT NULL,
+  `stored_filename` varchar(80) NOT NULL,
+  `content_type` varchar(120) NOT NULL,
+  `file_size` bigint unsigned NOT NULL,
+  `download_count` int unsigned NOT NULL DEFAULT '0',
+  `uploaded_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_course_notes_stored_filename` (`stored_filename`),
+  KEY `ix_course_notes_course_uploaded_at` (`course_id`,`uploaded_at`),
+  KEY `fk_course_notes_uploader` (`uploaded_by`),
+  CONSTRAINT `fk_course_notes_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_course_notes_uploader` FOREIGN KEY (`uploaded_by`) REFERENCES `staff` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_course_notes_file_size` CHECK ((`file_size` > 0))
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: courses
+================================================================================
+CREATE TABLE `courses` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `course_code` varchar(40) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `description` text,
+  `class_name` varchar(80) DEFAULT NULL,
+  `duration_months` smallint unsigned DEFAULT NULL,
+  `academic_year_id` bigint unsigned DEFAULT NULL,
+  `teacher_id` bigint unsigned DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_courses_code` (`course_code`),
+  KEY `fk_courses_academic_year` (`academic_year_id`),
+  KEY `fk_courses_teacher` (`teacher_id`),
+  CONSTRAINT `fk_courses_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_courses_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `staff` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: fee_invoices
+================================================================================
+CREATE TABLE `fee_invoices` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `student_id` bigint unsigned NOT NULL,
+  `fee_type_id` bigint unsigned NOT NULL,
+  `academic_year_id` bigint unsigned NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `due_date` date NOT NULL,
+  `status` enum('unpaid','partially_paid','paid','waived') NOT NULL DEFAULT 'unpaid',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `ix_fee_invoices_student_status` (`student_id`,`status`),
+  KEY `ix_fee_invoices_due_date` (`due_date`),
+  KEY `fk_fee_invoices_type` (`fee_type_id`),
+  KEY `fk_fee_invoices_academic_year` (`academic_year_id`),
+  CONSTRAINT `fk_fee_invoices_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_fee_invoices_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_fee_invoices_type` FOREIGN KEY (`fee_type_id`) REFERENCES `fee_types` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_fee_invoice_amount` CHECK ((`amount` >= 0))
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: fee_payments
+================================================================================
+CREATE TABLE `fee_payments` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `invoice_id` bigint unsigned NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `paid_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `payment_method` enum('cash','card','bank_transfer','online','other') NOT NULL,
+  `transaction_reference` varchar(120) DEFAULT NULL,
+  `received_by` bigint unsigned DEFAULT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_fee_payments_transaction_reference` (`transaction_reference`),
+  KEY `ix_fee_payments_invoice` (`invoice_id`,`paid_at`),
+  KEY `fk_fee_payments_receiver` (`received_by`),
+  CONSTRAINT `fk_fee_payments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `fee_invoices` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_fee_payments_receiver` FOREIGN KEY (`received_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_fee_payment_amount` CHECK ((`amount` > 0))
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: fee_types
+================================================================================
+CREATE TABLE `fee_types` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `class_name` varchar(80) DEFAULT NULL,
+  `academic_year_id` bigint unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_fee_types_name` (`name`,`academic_year_id`),
+  KEY `fk_fee_types_academic_year` (`academic_year_id`),
+  CONSTRAINT `fk_fee_types_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: permissions
+================================================================================
+CREATE TABLE `permissions` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(80) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_permissions_code` (`code`)
+) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: role_permissions
+================================================================================
+CREATE TABLE `role_permissions` (
+  `role_id` bigint unsigned NOT NULL,
+  `permission_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`role_id`,`permission_id`),
+  KEY `fk_role_permissions_permission` (`permission_id`),
+  CONSTRAINT `fk_role_permissions_permission` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_role_permissions_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: roles
+================================================================================
+CREATE TABLE `roles` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(40) NOT NULL,
+  `name` varchar(80) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_roles_code` (`code`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: salary_payments
+================================================================================
+CREATE TABLE `salary_payments` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `pay_period` date NOT NULL,
+  `gross_amount` decimal(12,2) NOT NULL,
+  `allowances` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `deductions` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `net_amount` decimal(12,2) NOT NULL,
+  `status` enum('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
+  `paid_at` timestamp NULL DEFAULT NULL,
+  `processed_by` bigint unsigned DEFAULT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_salary_staff_period` (`staff_id`,`pay_period`),
+  KEY `ix_salary_period_status` (`pay_period`,`status`),
+  KEY `fk_salary_payments_processor` (`processed_by`),
+  CONSTRAINT `fk_salary_payments_processor` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_salary_payments_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_salary_allowances` CHECK ((`allowances` >= 0)),
+  CONSTRAINT `chk_salary_amounts` CHECK ((`net_amount` = ((`gross_amount` + `allowances`) - `deductions`))),
+  CONSTRAINT `chk_salary_deductions` CHECK ((`deductions` >= 0)),
+  CONSTRAINT `chk_salary_gross_amount` CHECK ((`gross_amount` >= 0)),
+  CONSTRAINT `chk_salary_net_amount` CHECK ((`net_amount` >= 0))
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: school_events
+================================================================================
+CREATE TABLE `school_events` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(150) NOT NULL,
+  `description` varchar(2000) DEFAULT NULL,
+  `starts_at` datetime NOT NULL,
+  `ends_at` datetime DEFAULT NULL,
+  `created_by` bigint unsigned DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `ix_school_events_starts_at` (`starts_at`),
+  KEY `fk_school_events_creator` (`created_by`),
+  CONSTRAINT `fk_school_events_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_school_event_dates` CHECK (((`ends_at` is null) or (`ends_at` >= `starts_at`)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: staff
+================================================================================
+CREATE TABLE `staff` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `employee_number` varchar(40) NOT NULL,
+  `staff_type` enum('teacher','non_teaching') NOT NULL,
+  `designation` varchar(120) NOT NULL,
+  `hire_date` date NOT NULL,
+  `status` enum('active','inactive','on_leave','terminated') NOT NULL DEFAULT 'active',
+  `education` varchar(500) DEFAULT NULL,
+  `experience_years` decimal(4,1) NOT NULL DEFAULT '0.0',
+  `department` varchar(120) DEFAULT NULL,
+  `address` varchar(500) DEFAULT NULL,
+  `base_salary` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `shift` varchar(80) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_staff_user_id` (`user_id`),
+  UNIQUE KEY `uq_staff_employee_number` (`employee_number`),
+  CONSTRAINT `fk_staff_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_staff_base_salary` CHECK ((`base_salary` >= 0))
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: staff_attendance
+================================================================================
+CREATE TABLE `staff_attendance` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `staff_id` bigint unsigned NOT NULL,
+  `attendance_date` date NOT NULL,
+  `status` enum('present','absent','late','half_day','on_leave') NOT NULL,
+  `check_in` time DEFAULT NULL,
+  `check_out` time DEFAULT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  `recorded_by_username` varchar(80) NOT NULL,
+  `recorded_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_staff_attendance_staff_date` (`staff_id`,`attendance_date`),
+  KEY `ix_staff_attendance_date_status` (`attendance_date`,`status`),
+  CONSTRAINT `fk_staff_attendance_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: student_assessments
+================================================================================
+CREATE TABLE `student_assessments` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `student_id` bigint unsigned NOT NULL,
+  `course_id` bigint unsigned NOT NULL,
+  `academic_year_id` bigint unsigned NOT NULL,
+  `exam_name` varchar(150) NOT NULL,
+  `marks_obtained` decimal(7,2) NOT NULL,
+  `total_marks` decimal(7,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_student_assessment` (`student_id`,`course_id`,`academic_year_id`,`exam_name`),
+  KEY `ix_assessment_course_exam` (`course_id`,`academic_year_id`,`exam_name`),
+  CONSTRAINT `fk_assessment_enrollment` FOREIGN KEY (`student_id`, `course_id`, `academic_year_id`) REFERENCES `student_courses` (`student_id`, `course_id`, `academic_year_id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_assessment_marks` CHECK (((`marks_obtained` >= 0) and (`total_marks` > 0) and (`marks_obtained` <= `total_marks`)))
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: student_courses
+================================================================================
+CREATE TABLE `student_courses` (
+  `student_id` bigint unsigned NOT NULL,
+  `course_id` bigint unsigned NOT NULL,
+  `academic_year_id` bigint unsigned NOT NULL,
+  `enrolled_at` date NOT NULL,
+  `status` enum('enrolled','completed','withdrawn') NOT NULL DEFAULT 'enrolled',
+  PRIMARY KEY (`student_id`,`course_id`,`academic_year_id`),
+  KEY `ix_student_courses_course` (`course_id`,`academic_year_id`),
+  KEY `fk_student_courses_academic_year` (`academic_year_id`),
+  CONSTRAINT `fk_student_courses_academic_year` FOREIGN KEY (`academic_year_id`) REFERENCES `academic_years` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_student_courses_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_student_courses_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: student_fee_payments
+================================================================================
+CREATE TABLE `student_fee_payments` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `student_id` bigint unsigned NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `paid_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `payment_method` enum('cash','card','bank_transfer','online','other') NOT NULL,
+  `transaction_reference` varchar(120) DEFAULT NULL,
+  `received_by_username` varchar(80) NOT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_student_fee_payments_transaction_reference` (`transaction_reference`),
+  KEY `ix_student_fee_payments_student_paid_at` (`student_id`,`paid_at`),
+  CONSTRAINT `fk_student_fee_payments_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_student_fee_payment_amount` CHECK ((`amount` > 0))
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: students
+================================================================================
+CREATE TABLE `students` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `admission_number` varchar(40) NOT NULL,
+  `date_of_birth` date DEFAULT NULL,
+  `gender` varchar(30) DEFAULT NULL,
+  `admission_date` date NOT NULL,
+  `address` varchar(500) DEFAULT NULL,
+  `parent_guardian_name` varchar(160) DEFAULT NULL,
+  `parent_contact` varchar(30) DEFAULT NULL,
+  `status` enum('active','inactive','graduated','withdrawn') NOT NULL DEFAULT 'active',
+  `class_name` varchar(80) NOT NULL DEFAULT 'Unassigned',
+  `fee_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_students_user_id` (`user_id`),
+  UNIQUE KEY `uq_students_admission_number` (`admission_number`),
+  CONSTRAINT `fk_students_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_students_fee_amount` CHECK ((`fee_amount` >= 0))
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: teacher_course_schedules
+================================================================================
+CREATE TABLE `teacher_course_schedules` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `course_id` bigint unsigned NOT NULL,
+  `day_of_week` tinyint unsigned NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `class_name` varchar(80) DEFAULT NULL,
+  `room` varchar(80) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_teacher_course_schedule_day_start` (`course_id`,`day_of_week`,`start_time`),
+  KEY `ix_teacher_course_schedule_day_time` (`day_of_week`,`start_time`),
+  CONSTRAINT `fk_teacher_course_schedule_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_teacher_course_schedule_day` CHECK ((`day_of_week` <= 6)),
+  CONSTRAINT `chk_teacher_course_schedule_time` CHECK ((`end_time` > `start_time`))
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: user_roles
+================================================================================
+CREATE TABLE `user_roles` (
+  `user_id` bigint unsigned NOT NULL,
+  `role_id` bigint unsigned NOT NULL,
+  `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`,`role_id`),
+  KEY `fk_user_roles_role` (`role_id`),
+  CONSTRAINT `fk_user_roles_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_user_roles_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+================================================================================
+TABLE: users
+================================================================================
+CREATE TABLE `users` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `username` varchar(80) NOT NULL,
+  `email` varchar(254) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `first_name` varchar(100) NOT NULL,
+  `last_name` varchar(100) NOT NULL,
+  `phone` varchar(30) DEFAULT NULL,
+  `profile_photo_path` varchar(255) DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_users_username` (`username`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
